@@ -1,0 +1,88 @@
+// Keywords: nonWF, non-Wright-Fisher, QTL, quantitative trait loci
+
+initialize() {
+	initializeSLiMModelType("nonWF");
+	defineConstant("K1", 100);
+	defineConstant("K2", 100);
+	defineConstant("opt1", 15.0);
+	defineConstant("opt2", 5.0);
+	defineConstant("opt1b", 20.0);
+	defineConstant("Tdelta", 10000);
+	defineConstant("Tburnin",5000);
+	defineConstant("p1size",100);
+	defineConstant("p2size",100);
+	
+	initializeMutationType("m1", 0.5, "n", 0.0, 1.0);  // QTL
+	initializeMutationType("m2", 0.5, "e", 0.1); // deleterious in p2
+	initializeMutationType("m3", 0.5, "e", 0.1); // deleterious in p1
+	initializeGenomicElementType("g1", m1, 1.0);
+	initializeGenomicElement(g1, 0, 99999);
+	initializeMutationRate(1e-7);
+	initializeRecombinationRate(1e-8);
+}
+reproduction() {
+	subpop.addCrossed(individual, subpop.sampleIndividuals(1));
+}
+1 early() {
+	sim.addSubpop("p1", p1size);
+	sim.addSubpop("p2", p2size);
+}
+early() {
+	// QTL-based fitness
+	inds = sim.subpopulations.individuals;
+	phenotypes = inds.sumOfMutationsOfType(m1);
+	
+	//set optimum for pop1
+	if (sim.generation > Tdelta)
+		optimum1 = opt1b;
+	else if (sim.generation < Tburnin)
+		optimum1 = sim.generation/Tburnin * opt1;
+	else
+		optimum1 = opt1;
+	
+	//set optimum for pop2
+	if (sim.generation > Tdelta)
+		optimum2 = opt2;
+	else if (sim.generation < Tburnin)
+		optimum2 = sim.generation/Tburnin * opt2;
+	else
+		optimum2 = opt2;
+	
+	opts = c(rep(optimum1, p1.individualCount), rep(optimum2, p2.individualCount));
+	deviations = opts - phenotypes;
+	fitnessFunctionMax = dnorm(0.0, 0.0, 5.0);
+	adaptation = dnorm(deviations, 0.0, 5.0) / fitnessFunctionMax;
+	inds.fitnessScaling = 0.1 + adaptation * 0.9;
+	inds.tagF = phenotypes;   // just for output below
+	
+	// density-dependence with a maximum benefit at low density
+	p1.fitnessScaling = min(K1 / p1.individualCount, 1.5);
+	p2.fitnessScaling = min(K2 / p2.individualCount, 1.5);
+}
+fitness(m1) { return 1.0; }
+fitness(m2, p2) { return 1/relFitness; }
+fitness(m3, p1) { return 1/relFitness; }
+late() {
+	if (p1.individualCount == 0)
+	{
+		// stop at extinction
+		catn("Extinction in generation " + sim.generation + ".");
+		sim.simulationFinished();
+	}
+	else
+	{
+		// output the phenotypic mean and pop size
+		phenotypes1 = p1.individuals.tagF;
+		phenotypes2 = p2.individuals.tagF;
+		
+		cat("pop1 phenotype mean: " + mean(phenotypes1));
+		if (size(phenotypes1) > 1)
+			cat(" (sd " + sd(phenotypes1) + ")");
+		catn();
+		cat("pop2 phenotype mean: " + mean(phenotypes2));
+		if (size(phenotypes2) > 1)
+			cat(" (sd " + sd(phenotypes2) + ")");
+		catn();
+	}
+}
+20000 late() { sim.simulationFinished(); }

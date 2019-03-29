@@ -1,25 +1,35 @@
-// Keywords: continuous space, continuous spatial landscape, spatial map, reprising boundaries, QTL, quantitative trait loci, spatial competition, spatial mate choice
+// TO-DO:
+// - Add habitat-selection to the dispersal function
+// - Introduce differentially adaptive mutations (e.g. beneficial in p1, deleterious p2)
+// - Probability of mating = 1-(NL choose NL/2)*0.5^NL where NL is number of mates in radius
+// - Remove possibility of selfing 
+// - Maybe rethink prob of survival? See Holt et al 2004
+// - Fix how the spatialMap values change during transition
+
+
+
 
 initialize() {
 	initializeSLiMModelType("nonWF");
 
-	defineConstant("sigma_C", 0.1);
+	defineConstant("sigma_C", 0.5);
 	defineConstant("sigma_K", 0.5);
-	defineConstant("sigma_M", 0.1);
+	defineConstant("sigma_M", 0.5);
 	
 	defineConstant("p1_opt", 0.0);
 	defineConstant("p2_opt", 1.0);
-	defineConstant("phen_weight", 2.0); //scales rel impact of pheno optimum on abs fitness
+	defineConstant("phen_weight", 0.2); //scales rel impact of pheno optimum on abs fitness
 	
 	defineConstant("rate_change", 1000);
 	defineConstant("mig_rate", 0.1);
 	defineConstant("N", 10);
-	defineConstant("K", 10); //carrying capacity for pop
+	defineConstant("K", 100); //carrying capacity for pop
+	defineConstant("S", 0.1); // spatial competition distance
 	
 	initializeSLiMOptions(dimensionality="xyz");
 	initializeMutationRate(1e-6);
-	initializeMutationType("m1", 0.5, "f", 0.0);        // neutral
-	initializeMutationType("m2", 0.5, "n", 0.0, 1.0);   // QTL
+	initializeMutationType("m1", 0.1, "f", 0.0);        // neutral
+	initializeMutationType("m2", 0.1, "n", 0.0, 1.0);   // QTL
 	m2.convertToSubstitution = F;
 	
 	initializeGenomicElementType("g1", c(m1, m2), c(1, 0.1));
@@ -27,10 +37,11 @@ initialize() {
 	initializeRecombinationRate(1e-8);
 	
 	
-	initializeInteractionType(1, "xyz", reciprocal=T, maxDistance=sigma_C * 3);     // competition
-	i1.setInteractionFunction("n", 1.0, sigma_C);
-	initializeInteractionType(2, "xyz", reciprocal=T, maxDistance=sigma_M * 3);     // mate choice
-	i2.setInteractionFunction("n", 1.0, sigma_M);
+	// spatial competition
+	initializeInteractionType(1, "xy", reciprocal=T, maxDistance=S);
+	// spatial mate choice
+	initializeInteractionType(2, "xy", reciprocal=T, maxDistance=0.1);
+
 }
 
 //random mate choice right now, need to change to weight by spatial proximity
@@ -38,20 +49,28 @@ reproduction() //called per ind, opportunity to mate
 {
 	// choose our nearest neighbor as a mate, within the max distance
 	mate = i2.nearestNeighbors(individual, 1);
+	
 	for (i in seqLen(rpois(1, 0.1)))
  	{
-		if (mate.size())
+		if (mate.size()){
 			offspring = subpop.addCrossed(individual, mate);
-		else
-			offspring = subpop.addSelfed(individual);
 
-		// set offspring position
-		do{
+			// set offspring position
 			pos = individual.spatialPosition[0:1] + rnorm(2, 0, 0.005);
-		}while (p1.pointInBounds(c(pos,0.0)));
 		
-		phenotype = offspring.sumOfMutationsOfType(m2);
-		offspring.setSpatialPosition(c(pos,phenotype));
+			if (pos[0] > 1.0)
+				pos[0] = 1.0;
+			else if (pos[0] < 0.0)
+				pos[0] = 0.0;
+			
+			if (pos[1] > 1.0)
+				pos[1] = 1.0;
+			else if (pos[1] < 0.0)
+				pos[1] = 0.0;
+		
+			phenotype = offspring.sumOfMutationsOfType(m2);
+			offspring.setSpatialPosition(c(pos,phenotype));
+		}
 	}
 }
 
@@ -72,53 +91,101 @@ reproduction() //called per ind, opportunity to mate
 		ind.setSpatialPosition(p1.pointUniform());
 	for (ind in p2.individuals)
 		ind.setSpatialPosition(p2.pointUniform());
-	p1.individuals.z = 0.0;
-	p2.individuals.z = 0.0;
+	p1.individuals.tagF = 0.5;
+	p2.individuals.tagF = 0.5;
 }
+
+//maybe burn-in evolves populations towards diff optima, then optima set by location?
+//maybe switch completely away from the spatial model altogether..?
+
 
 early() {
-	p1.fitnessScaling = K / p1.individualCount;
-	p2.fitnessScaling = K / p2.individualCount;
-}
 
-//early() {
-	//fitness(NULL) {    // phenotypic competition
-	//	totalStrength = sum(i1.strength(individual));
-	//	totalInd = p1.individualCount + p2.individualCount;
-	//	return 1.0 - totalStrength / totalInd;
-	//}
-//	i1.evaluate();
+	i1.evaluate();
+
+	inds = sim.subpopulations.individuals;
+	//phenotypes = inds.sumOfMutationsOfType(m2);
+	phenotypes = inds.sumOfMutationsOfType(m2);
+	optimum = c(rep(p1_opt, p1.individualCount), rep(p2_opt, p2.individualCount));
+	//print(optimum);
+	phen_deviations = abs(optimum - phenotypes);
+	//print(phenotypes);
+	
+	//local deviations
+	locations = c();
+	for (i in inds){
+		coords = i.spatialPosition[0:1];
+		locations = c(locations, i.subpopulation.spatialMapValue("map1", coords));
+	}
+	loc_deviations = abs(optimum - locations); 
+	print(loc_deviations);
+	
+	//compute weighted average of phenotypic and local deviations
+	deviations = ((phen_deviations * phen_weight) + (loc_deviations * (1-phen_weight))) / 2;
+	//deviations = loc_deviations;
+	
+	//calculate adaptation
+	//print("deviations");
+	//print(deviations);
+	
+	fitnessFunctionMax = dnorm(0.0, 0.0, 1.0);
+	adaptation = dnorm(deviations, 0.0, 1.0) / fitnessFunctionMax;
+	//print("Adaptation:");
+	//print(adaptation);
+	inds.fitnessScaling = 0.1 + adaptation * 0.9;
+	inds.tagF = phenotypes;
+	
+	//print("before");
+	//print(inds.fitnessScaling);
+	
 	// spatial competition provides density-dependent selection
-//	inds = p1.individuals;
-//	competition = i1.totalOfNeighborStrengths(inds);
-//	competition = (competition + 1) / (PI * S^2);
-//	inds.fitnessScaling = K / competition;
-//} 
+	//inds = sim.subpopulations.individuals;
+	//competition = i1.totalOfNeighborStrengths(inds);
+	//competition = (competition + 1) / (PI * S^2);
+	//inds.fitnessScaling = inds.fitnessScaling * (K / competition);
 
-1: late() {
+	//print("after");
+	//print(inds.fitnessScaling);	
+	//density dependent, with a max benefit
+	p1.fitnessScaling = min(K / p1.individualCount, 1.5);
+	p2.fitnessScaling = min(K / p2.individualCount, 1.5);
+	
+} 
+
+late() {
 	// construct phenotypes from the additive effects of QTLs
 	inds = sim.subpopulations.individuals;
-	phenotype = inds.sumOfMutationsOfType(m2);
-	inds.z = phenotype;
 	
 	// color individuals according to phenotype
-	inds.color = p1.spatialMapColor("map1", phenotype);
+	inds.color = p1.spatialMapColor("map1", inds.tagF);
 	
 	//individual dispersal!!
 	// move around a bit
-	//for (ind in sim.subpopulations.individuals)
-	//{
-	//	do{
-	//		newPos = ind.spatialPosition[0:1] + runif(2, -0.01, 0.01);
-	//	}while (!p1.pointInBounds(c(newPos,ind.z)));
-	//	ind.setSpatialPosition(c(newPos,ind.z));
-	//}
+	for (ind in sim.subpopulations.individuals)
+	{
+		newPos = ind.spatialPosition[0:1] + runif(2, -0.001, 0.001);
+		if (newPos[0] > 1.0)
+			newPos[0] = 1.0;
+		else if (newPos[0] < 0.0)
+			newPos[0] = 0.0;
+			
+		if (newPos[1] > 1.0)
+			newPos[1] = 1.0;
+		else if (newPos[1] < 0.0)
+			newPos[1] = 0.0;
+
+		ind.setSpatialPosition(c(newPos,ind.z));
+	}
 	
-	// evaluate interactions
-	i1.evaluate();
+	// look for mates
 	i2.evaluate();
+	
 }
 
+//interaction(i1) {
+//	return dnorm(exerter.tagF, mean=receiver.tagF, sd=sigma_C) / 
+//		dnorm(0.0, mean=0, sd=sigma_C);
+//} 
 
 late() {
 	for (s in sim.subpopulations)
@@ -133,37 +200,23 @@ late() {
 //{
 	//p2.setMigrationRates(p1, 0.1);
 
-//	weight = (cos((sim.generation - 1) / rate_change) + 1.8) / 2.0;
-//	newMap = weight * mapValues + (1 - weight) * 0.2;
+	//weight = (cos((sim.generation - 1) / 100) + 1.8) / 2.0;
+	//newMap = weight * mapValues + (1 - weight) * 0.0;
+//	newMap = mapValues * 0.0;
 //	p1.defineSpatialMap("map1", "xy", c(5, 5), newMap, interpolate=T,valueRange=c(-0.2, 1.2), colors=c("red", "yellow"));
 //	p2.defineSpatialMap("map1", "xy", c(5, 5), newMap, interpolate=T,valueRange=c(-0.2, 1.2), colors=c("red", "yellow"));
 //}
 
-//fitness(m2) {      // make QTLs intrinsically neutral
-//	return 1.0;
-//}
+fitness(m2) {      // make QTLs intrinsically neutral
+	return 1.0;
+}
 
-//fitness(NULL) {    // reward proximity to the optimum
-//	location = individual.spatialPosition[0:1];
-//	optimum = subpop.spatialMapValue("map1", location);
-//	return 1.0 + dnorm(optimum - individual.z, mean=0.0, sd=sigma_K);
-//}
-
-//fitness(NULL) {    // reward proximity to the pre-defined phenotypic optimum
-//	location = individual.spatialPosition[0:1];
-//	local = subpop.spatialMapValue("map1", location);
-	
-//	if (individual.subpopulation.id == 1)
-//		return 1.0 + dnorm(p1_opt - local, mean=0.0, sd=sigma_K) * phen_weight;
-//	else
-//		return 1.0 + dnorm(p2_opt - local, mean=0.0, sd=sigma_K) * phen_weight;
-//}
-
-//fitness(NULL) {    // phenotypic competition
+//fitness(NULL) { // phenotypic competition
 //	totalStrength = sum(i1.strength(individual));
-//	totalInd = p1.individualCount + p2.individualCount;
-//	return 1.0 - totalStrength / totalInd;
+//	print(1.0 - totalStrength / subpop.individualCount);
+//	return 1.0 - totalStrength / subpop.individualCount;
 //}
+
 
 //mateChoice() {
 	// spatial mate choice

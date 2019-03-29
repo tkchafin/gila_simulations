@@ -90,7 +90,7 @@ fitness(NULL) {    // reward proximity to the optimum
 fitness(NULL) {    // reward proximity to the pre-defined phenotypic optimum
 	location = individual.spatialPosition[0:1];
 	local = subpop.spatialMapValue("map1", location);
-	
+	print(1.0 + dnorm(p1_opt - local, mean=0.0, sd=sigma_K) * phen_weight);
 	if (individual.subpopulation.id == 1)
 		return 1.0 + dnorm(p1_opt - local, mean=0.0, sd=sigma_K) * phen_weight;
 	else
