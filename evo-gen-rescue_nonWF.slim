@@ -18,7 +18,7 @@ initialize() {
 
    //migration 2 --> 1
 	defineConstant("Tm", 70000);
-	defineConstant("m",0.0);
+	defineConstant("m",0.5);
 
 	//initializations
 	defineConstant("Tburnin",30000);
@@ -47,9 +47,11 @@ reproduction(p1, "M") {
 //      }
 //	   subpop.addCrossed(subpop.sampleIndividuals(1, sex="F"), individual);
 //   }else{
-      litterSize = rpois(1, pois_mean);
-      for (j in seqLen(litterSize))
-        subpop.addCrossed(subpop.sampleIndividuals(1, sex="F"), individual);
+         litterSize = rpois(1, pois_mean);
+         if (litterSize > 0){
+         for (j in seqLen(litterSize))
+            subpop.addCrossed(subpop.sampleIndividuals(1, sex="F"), individual);
+         }
 //	}
 }
 
@@ -66,8 +68,10 @@ reproduction(p2, "M") {
 //	   subpop.addCrossed(subpop.sampleIndividuals(1, sex="F"), individual);
 //   }else{
          litterSize = rpois(1, pois_mean);
+         if (litterSize > 0){
          for (j in seqLen(litterSize))
             subpop.addCrossed(subpop.sampleIndividuals(1, sex="F"), individual);
+         }
 //	}
 }
 
