@@ -18,7 +18,7 @@ initialize() {
 
    //migration 2 --> 1
 	defineConstant("Tm", 70000);
-	defineConstant("m",0.5);
+	defineConstant("m",0.2);
 
 	//initializations
 	defineConstant("Tburnin",30000);
@@ -27,9 +27,9 @@ initialize() {
 	
 	initializeSex("A");
 	initializeMutationType("m1", 0.5, "n", 0.0, 1.0);  // QTL
-	initializeMutationType("m2", 0.5, "e", 0.1); // deleterious in p2
-	initializeMutationType("m3", 0.5, "e", 0.5); // deleterious in p1
-	initializeGenomicElementType("g1", c(m1,m2,m3), c(0.96, 0.02, 0.02));
+	initializeMutationType("m2", 0.5, "e", 0.01); // deleterious in p2
+	initializeMutationType("m3", 0.5, "e", 0.01); // deleterious in p1
+	initializeGenomicElementType("g1", c(m1,m2,m3), c(0.98, 0.01, 0.01));
 	initializeGenomicElement(g1, 0, 99999);
 	initializeMutationRate(1e-7);
 	initializeRecombinationRate(1e-8);
@@ -129,11 +129,11 @@ early() {
 
 }
 fitness(m1) { return 1.0; }
-fitness(m2) { return 1.0; }
+//fitness(m2) { return 1.0; }
 fitness(m2, p2) { return 1/relFitness; }
 fitness(m3, p1) { return 1/relFitness; }
-fitness(m2, p1) {return 1.0;}
-fitness(m3, p2) {return 1.0;}
+//fitness(m2, p1) {return 1.0;}
+//fitness(m3, p2) {return 1.0;}
 
 late() {
 	if (p1.individualCount == 0)
