@@ -1,0 +1,94 @@
+// Keywords: nonWF, non-Wright-Fisher, continuous space, continuous spatial landscape, periodic boundaries, selfing, spatial competition, spatial mate choice
+
+initialize() {
+	initializeSLiMModelType("nonWF");
+	initializeSLiMOptions(dimensionality="xy");
+	defineConstant("K", 100);   // carrying-capacity density
+	defineConstant("S", 0.1);   // sigma_S, the spatial interaction width
+
+	defineConstant("N", 50);
+	
+	initializeMutationType("m1", 0.5, "f", 0.0);
+	m1.convertToSubstitution = T;
+	
+	initializeGenomicElementType("g1", m1, 1.0);
+	initializeGenomicElement(g1, 0, 99999);
+	initializeMutationRate(1e-7);
+	initializeRecombinationRate(1e-8);
+	
+	// spatial competition
+	initializeInteractionType(1, "xy", reciprocal=T, maxDistance=S * 3);
+	i1.setInteractionFunction("n", 1.0, S);
+	
+	// spatial mate choice
+	initializeInteractionType(2, "xy", reciprocal=T, maxDistance=0.1);
+}
+reproduction() {
+	// choose our nearest neighbor as a mate, within the max distance
+	mate = i2.nearestNeighbors(individual, 1);
+	
+	for (i in seqLen(rpois(1, 0.1)))
+	{
+		if (mate.size())
+			offspring = subpop.addCrossed(individual, mate);
+		else
+			offspring = subpop.addSelfed(individual);
+		
+		// set offspring position
+		pos = individual.spatialPosition + rnorm(2, 0, 0.02);
+		offspring.setSpatialPosition(pos);
+	}
+}
+1 early() {
+	sim.addSubpop("p1", N);
+	sim.addSubpop("p2", N);
+	
+	p1.setSpatialBounds(c(0.0, 0.0, 1.0, 1.0));
+	p2.setSpatialBounds(c(0.0, 0.0, 1.0, 1.0));
+	
+	defineConstant("mapValues", runif(25, -0.2, 1.2));
+	p1.defineSpatialMap("map1", "xy", c(5, 5), mapValues, interpolate=T,
+		valueRange=c(-0.2, 1.2), colors=c("red", "yellow"));
+	p2.defineSpatialMap("map1", "xy", c(5, 5), mapValues, interpolate=T,
+		valueRange=c(-0.2, 1.2), colors=c("red", "yellow"));
+		
+}
+
+1 late() {
+
+
+}
+
+
+early() {
+	i1.evaluate();
+	
+	// spatial competition provides density-dependent selection (p1)
+	inds = p1.individuals;
+	competition = i1.totalOfNeighborStrengths(inds);
+	competition = competition / (2 * PI * S^2);
+	inds.fitnessScaling = K / competition;
+	
+	// spatial competition provides density-dependent selection (p1)
+	inds2 = p2.individuals;
+	competition2 = i1.totalOfNeighborStrengths(inds2);
+	competition2 = competition2 / (2 * PI * S^2);
+	inds2.fitnessScaling = K / competition2;
+	
+	
+}
+late()
+{
+	// move around a bit
+	for (ind in p1.individuals)
+	{
+		newPos = ind.spatialPosition + runif(2, -0.01, 0.01);
+		ind.setSpatialPosition(newPos);
+	}
+	
+	// then look for mates
+	i2.evaluate();
+}
+10000 late() {
+	sim.outputFixedMutations();
+}

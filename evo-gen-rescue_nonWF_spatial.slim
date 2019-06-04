@@ -3,8 +3,10 @@
 
 initialize() {
 	initializeSLiMModelType("nonWF");
+	initializeSLiMOptions(dimensionality="xyz");
 	defineConstant("K1", 50);
 	defineConstant("K2", 100);
+	defineConstant("S", 0.1); 
 
    //phenotypic optima and env. change
 	defineConstant("opt1start", 10.0);
@@ -25,55 +27,57 @@ initialize() {
 	defineConstant("p1size",100);
 	defineConstant("p2size",100);
 	
-	initializeSex("A");
+	//initializeSex("A");
 	initializeMutationType("m1", 0.5, "n", 0.0, 1.0);  // QTL
 	initializeMutationType("m2", 0.5, "e", 0.01); // deleterious in p2
 	initializeMutationType("m3", 0.5, "e", 0.1); // deleterious in p1
+	m1.convertToSubstitution = T;
 	initializeGenomicElementType("g1", c(m1,m2,m3), c(0.98, 0.01, 0.01));
 	initializeGenomicElement(g1, 0, 99999);
 	initializeMutationRate(1e-7);
 	initializeRecombinationRate(1e-8);
 	
+	// spatial competition
+	initializeInteractionType(1, "xy", reciprocal=T, maxDistance=S * 3);
+	i1.setInteractionFunction("n", 1.0, S);
+	// spatial mate choice
+	initializeInteractionType(2, "xy", reciprocal=T, maxDistance=0.1);
+	
+	
 }
-reproduction(p1, "M") {
-//   if (sim.generation > Tm){
-//      match = individual.sumOfMutationsOfType(m3);
-//      print(match);
-//      if (rnorm(1,0.0,1) < match){
-//         //subpop.addCrossed(subpop.sampleIndividuals(1, sex="F"), individual);
-//         litterSize = rpois(1, pois_mean);
-//         for (j in seqLen(litterSize))
-//            subpop.addCrossed(subpop.sampleIndividuals(1, sex="F"), individual);
-//      }
-//	   subpop.addCrossed(subpop.sampleIndividuals(1, sex="F"), individual);
-//   }else{
-         litterSize = rpois(1, pois_mean);
-         if (litterSize > 0){
-         for (j in seqLen(litterSize))
-            subpop.addCrossed(subpop.sampleIndividuals(1, sex="F"), individual);
-         }
-//	}
+reproduction() {
+	// choose our nearest neighbor as a mate, within the max distance
+ 	mate = i2.nearestNeighbors(individual, 1);
+	for (i in seqLen(rpois(1, 0.1)))
+ 	{
+ 		if (mate.size()){
+ 			offspring = subpop.addCrossed(individual, mate);
+ 			// set offspring position
+ 			pos = individual.spatialPosition + c(rnorm(2, 0, 0.02),0.0);
+ 			offspring.setSpatialPosition(p1.pointPeriodic(pos));
+ 		}
+ 	}
 }
 
-reproduction(p2, "M") {
-//   if (sim.generation > Tburnin){
-//      match = individual.sumOfMutationsOfType(m2);// - subpop.getValue("mate-opt");
-//      //print(match);
-//      if (rnorm(1,0.0,match_sd) < match){
-//         subpop.addCrossed(subpop.sampleIndividuals(1, sex="F"), individual);
+//reproduction(p2, "M") {
+////   if (sim.generation > Tburnin){
+////      match = individual.sumOfMutationsOfType(m2);// - subpop.getValue("mate-opt");
+////      //print(match);
+////      if (rnorm(1,0.0,match_sd) < match){
+////         subpop.addCrossed(subpop.sampleIndividuals(1, sex="F"), individual);
+////         litterSize = rpois(1, pois_mean);
+////         for (j in seqLen(litterSize))
+////            subpop.addCrossed(subpop.sampleIndividuals(1, sex="F"), individual);
+////      }
+////	   subpop.addCrossed(subpop.sampleIndividuals(1, sex="F"), individual);
+////   }else{
 //         litterSize = rpois(1, pois_mean);
-//         for (j in seqLen(litterSize))
-//            subpop.addCrossed(subpop.sampleIndividuals(1, sex="F"), individual);
-//      }
-//	   subpop.addCrossed(subpop.sampleIndividuals(1, sex="F"), individual);
-//   }else{
-         litterSize = rpois(1, pois_mean);
-         if (litterSize > 0){
-         for (j in seqLen(litterSize))
-            subpop.addCrossed(subpop.sampleIndividuals(1, sex="F"), individual);
-         }
-//	}
-}
+//         if (litterSize > 0){
+//         	for (j in seqLen(litterSize))
+//            	subpop.addCrossed(subpop.sampleIndividuals(1, sex="F"), individual);
+//         }
+////	}
+//}
 
 1 early() {
 	sim.addSubpop("p1", p1size);
@@ -81,12 +85,33 @@ reproduction(p2, "M") {
 	sim.setValue("opt1", opt1start);
 	p1.setValue("mate-opt", opt1start);
 	p2.setValue("mate-opt", opt2);
+	
+	p1.setSpatialBounds(c(0.0, 0.0, 0.0, 1.0, 1.0, 1.0));
+	p2.setSpatialBounds(c(0.0, 0.0, 0.0, 1.0, 1.0, 1.0));
+	
+	defineConstant("mapValues", runif(25, -10.0, 10.0));
+	p1.defineSpatialMap("map1", "xy", c(5, 5), mapValues, interpolate=T,
+		valueRange=c(-10.0, 10.0), colors=c("red", "yellow"));
+	p2.defineSpatialMap("map1", "xy", c(5, 5), mapValues, interpolate=T,
+		valueRange=c(-10.0, 10.0), colors=c("red", "yellow"));
+	
+	for (ind in p1.individuals)
+		ind.setSpatialPosition(p1.pointUniform());
+	for (ind in p2.individuals)
+		ind.setSpatialPosition(p2.pointUniform());
+
 }
+
+
 early() {
+
+	i1.evaluate();
 
 	// QTL-based phenotypes
 	inds = sim.subpopulations.individuals;
 	phenotypes = inds.sumOfMutationsOfType(m1);
+	
+	inds.color = p1.spatialMapColor("map1", phenotypes);
 	
 	//set optimum for pop1
 	if (sim.generation > Tdelta){
@@ -115,9 +140,16 @@ early() {
 	inds.fitnessScaling = adaptation;
 	inds.tagF = phenotypes;   // just for output below
 	
-	// density-dependence with no at low density
-	p1.fitnessScaling = min(K1 / p1.individualCount, 0.9);
-	p2.fitnessScaling = min(K2 / p2.individualCount, 0.9);
+	// spatial competition provides density-dependent selection
+ 	inds1 = p1.individuals;
+ 	inds2 = p2.individuals;
+ 	competition1 = i1.totalOfNeighborStrengths(inds1);
+ 	competition1 = (competition1 + 1) / (2 * PI * S^2);
+ 	inds1.fitnessScaling = K1 / competition1;
+  	inds2 = p2.individuals;
+ 	competition2 = i1.totalOfNeighborStrengths(inds2);
+ 	competition2 = (competition2 + 1) / (2 * PI * S^2);
+ 	inds2.fitnessScaling = K2 / competition2;
 	
 	if (sim.generation > Tdelta){
 	   //migration p2 --> p1 w/ probability m
@@ -137,6 +169,18 @@ fitness(m3, p1) { return 1/relFitness; }
 //fitness(m2, p1) {return 1.0;}
 //fitness(m3, p2) {return 1.0;}
 
+
+modifyChild() {
+	// set offspring position based on parental position
+	do
+		pos = c(parent1.spatialPosition[0:1] + rnorm(2, 0, 0.005), 0.0);
+	while (!p1.pointInBounds(pos));
+	child.setSpatialPosition(pos);
+	
+	return T;
+}
+
+
 late() {
 	if (p1.individualCount == 0)
 	{
@@ -144,20 +188,14 @@ late() {
 		catn("Extinction in generation " + sim.generation + ".");
 		sim.simulationFinished();
 	}
-	else
-	{
-		// output the phenotypic mean and pop size
-//		phenotypes1 = p1.individuals.tagF;
-//		phenotypes2 = p2.individuals.tagF;
-//		
-//		cat("pop1 phenotype mean: " + mean(phenotypes1));
-//		if (size(phenotypes1) > 1)
-//			cat(" (sd " + sd(phenotypes1) + ")");
-//		catn();
-//		cat("pop2 phenotype mean: " + mean(phenotypes2));
-//		if (size(phenotypes2) > 1)
-//			cat(" (sd " + sd(phenotypes2) + ")");
-//		catn();
-	}
+
+	// move around a bit
+	for (ind in p1.individuals)
+ 	{
+ 		newPos = ind.spatialPosition + c(runif(2, -0.01, 0.01),0.0);
+ 		ind.setSpatialPosition(newPos);
+ 	}
+	// then look for mates
+	i2.evaluate();
 }
 100000 late() { sim.simulationFinished(); }
