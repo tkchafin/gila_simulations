@@ -10,6 +10,7 @@ initialize() {
 	defineConstant("K2", 200);   // carrying capacity p2
 	
 	defineConstant("S", 0.1);   // spatial competition distance
+	defineConstant("sigma_s", 1.0); //scaling for m2/m3 selection coefficients
 	defineConstant("sigma_C", 0.05); //max dist for mate choice
 	defineConstant("sigma_R", 0.2); //sd for prob. of mate selection
 	defineConstant("sigma_K", 0.25); //sd for fitness function
@@ -58,7 +59,7 @@ initialize() {
 	defineConstant("m",0.0); //migration rate p2 --> p1
 	defineConstant("opt1b", 0.85);
 	defineConstant("max_change", 0.5);
-	defineConstant("delta", -0.001); //rate of change from opt1 to opt2 starting at Tdelta
+	defineConstant("delta", -0.0001); //rate of change from opt1 to opt2 starting at Tdelta
 	
 	
 	// spatial competition
@@ -69,19 +70,9 @@ initialize() {
 	initializeInteractionType(2, "xy", reciprocal=T, maxDistance=sigma_C);
 }
 
-1:60000 reproduction(p1){
-	mate = i2.nearestNeighbors(individual, 1);
-	for (i in seqLen(rpois(1, litter_lambda))){
-		if (mate.size()){
-			offspring = subpop.addCrossed(individual, mate);
-			// set offspring position
-			pos = individual.spatialPosition + rnorm(2, 0, sigma_M);
-			offspring.setSpatialPosition(p1.pointPeriodic(pos));
-		}
-	}
-}
 
-60001: reproduction(p1) {
+
+reproduction(p1) {
 	// choose our nearest neighbor as a mate, within the max distance
 	mate = i2.nearestNeighbors(individual, 1);
 	if (mate.size()){
@@ -97,19 +88,9 @@ initialize() {
 	}
 }
 
-1:60000 reproduction(p2){
-	mate = i2.nearestNeighbors(individual, 1);
-	for (i in seqLen(rpois(1, litter_lambda))){
-		if (mate.size()){
-			offspring = subpop.addCrossed(individual, mate);
-			// set offspring position
-			pos = individual.spatialPosition + rnorm(2, 0, sigma_M);
-			offspring.setSpatialPosition(p2.pointPeriodic(pos));
-		}
-	}
-}
 
-60001: reproduction(p2) {
+
+reproduction(p2) {
 	// choose our nearest neighbor as a mate, within the max distance
 	mate = i2.nearestNeighbors(individual, 1);
 	if (mate.size()){
@@ -160,61 +141,8 @@ early() {
 	
 	// color individuals according to phenotype
 	inds.color = p1.spatialMapColor("map1", phenotype);
-}
 
-//BURN IN PERIOD 1: Generating Variation
-1:10000 early(){
-	//range-wide density dependence if < Tburn3
-	p1.fitnessScaling = min(K1 / p1.individualCount, 1.5);
-	p2.fitnessScaling = min(K2 / p2.individualCount, 1.5);
-
-}
-
-//BURN IN PERIOD 2: Evolving towards pre-defined optima
-10001:70000 early(){
-	inds = sim.subpopulations.individuals;
-	phenotype =  sim.subpopulations.individuals.sumOfMutationsOfType(m1);
-	
-	p1.fitnessScaling = min(K1 / p1.individualCount, 1.5);
-	p2.fitnessScaling = min(K2 / p2.individualCount, 1.5);
-	
-	optima = c(rep(opt1, p1.individualCount), rep(opt2, p2.individualCount));
-	deviations = optima - phenotype;
-	fitnessFunctionMax = dnorm(0.0, 0.0, sigma_K);
-	adaptation = dnorm(deviations, 0.0, sigma_K) / fitnessFunctionMax; //normlz (0,1]
-	scale=(70000-sim.generation)/(70000-10000);
-	mod_adapt=(scale) + adaptation*(1.0-scale);
-	inds.fitnessScaling = 0.1+mod_adapt*(0.9);	//FLOOR = 0.1
-}
-
-
-//BURN IN PERIOD 3: Working in spatial effect and mate choice
-70001:80000 early(){
-	inds = sim.subpopulations.individuals;
-	phenotype =  sim.subpopulations.individuals.sumOfMutationsOfType(m1);
-	
-	p1.fitnessScaling = min(K1 / p1.individualCount, 1.5);
-	p2.fitnessScaling = min(K2 / p2.individualCount, 1.5);
-	
-	optima = NULL;
-	for (ind in inds)
-		optima = c(optima, p1.spatialMapValue("map1", ind.spatialPosition[0:1])); //try saply to optimize
-	deviations = optima - phenotype;
-	fitnessFunctionMax = dnorm(0.0, 0.0, sigma_K);
-	adaptation = dnorm(deviations, 0.0, sigma_K) / fitnessFunctionMax; 
-	inds.fitnessScaling = 0.1 + adaptation*(0.9); //FLOOR = 0.1
-}
-
-80000 early(){
-	sim.outputFull("~/model.txt"); 
-}
-
-//BURN IN PERIOD 4: Adding spatial competitition
-80001: early(){
-
-	inds = sim.subpopulations.individuals;
-	phenotype =  sim.subpopulations.individuals.sumOfMutationsOfType(m1);
-
+	//caps maximum pop size in case sel. coefficients of run get out of control :)
 	p1.fitnessScaling = min(10*K1 / p1.individualCount, 1.0);
 	p2.fitnessScaling = min(10*K2 / p2.individualCount, 1.0);
 
@@ -243,14 +171,14 @@ early() {
 
 
 fitness(m1) { return 1.0; }
-fitness(m2, p1) { return relFitness*s; }
-fitness(m3, p2) { return relFitness*s; }
-fitness(m2, p2) { return 1/(s*relFitness); }
-fitness(m3, p1) { return 1/(s*relFitness); }
+fitness(m2, p1) { return relFitness*sigma_s; }
+fitness(m3, p2) { return relFitness*sigma_s; }
+fitness(m2, p2) { return 1/(sigma_s*relFitness); }
+fitness(m3, p1) { return 1/(sigma_s*relFitness); }
 
 
 //Tdelta = Tm = 90001
-81000: late(){
+91000: late(){
 	inds = sim.subpopulations.individuals;
 	//Migration, after time Tm
 
@@ -269,26 +197,12 @@ fitness(m3, p1) { return 1/(s*relFitness); }
 
 	//GRADUAL CHANGE MODEL
 	//Evaluate environmental change (affecting NEXT generation)
-	//change all environmental pixel values at rate delta
-//	sim.setValue("change", sim.getValue("change") + delta);
-//	newMap = mapValues;
-//	newMap[newMap < opt1b] = newMap[newMap<opt1b] + sim.getValue("change"); //values of map not below maximum change get shifted
-//	//print(newMap[newMap > opt1b]);
-//	newMap[newMap > 1.0] = 1.0; //set values outside of defined map range
-//	newMap[newMap < 0.0] = 0.0;
-//	p1.defineSpatialMap("map1", "xy", c(5, 5), newMap,
-//	interpolate=T,valueRange=c(-0.2, 1.2), colors=c("red", "yellow"));
-//	p2.defineSpatialMap("map1", "xy", c(5, 5), newMap,
-//	interpolate=T,valueRange=c(-0.2, 1.2), colors=c("red", "yellow"));
-	//maxing out change at a value opt1b
 	sim.setValue("change", max(max_change, (sim.getValue("change") + delta)));
 	newMap = ((mapValues - min(mapValues))/(max(mapValues)-min(mapValues))) * (sim.getValue("change") - 0.0) + 0.0; //normalize between new mim/max range (here, 0.0,change)
 	p1.defineSpatialMap("map1", "xy", c(5, 5), newMap,
 	interpolate=T,valueRange=c(-0.2, 1.2), colors=c("red", "yellow"));
 	p2.defineSpatialMap("map1", "xy", c(5, 5), newMap,
 	interpolate=T,valueRange=c(-0.2, 1.2), colors=c("red", "yellow"));
-	//maxing out change at a value opt1b
-	
 }
 
 late()
@@ -316,7 +230,7 @@ late()
 	i2.evaluate();	
 }
 
-100000 late() {
+93000 late() {
 	print("Simulation finished.");
 	sim.simulationFinished();
 }

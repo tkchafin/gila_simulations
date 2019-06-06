@@ -6,29 +6,6 @@
 initialize() {
 	initializeSLiMModelType("nonWF");
 	initializeSLiMOptions(dimensionality="xy", periodicity="xy");
-	defineConstant("K1", 500);   // carrying capacity p1
-	defineConstant("K2", 500);   // carrying capacity p2
-	
-	defineConstant("sigma_C", 0.05); //max dist for mate choice
-	defineConstant("sigma_R", 0.2); //sd for prob. of mate selection
-	defineConstant("MAX_AGE", 5);
-	defineConstant("sigma_s", 1.00); //scaling for mean sel. coefficient of m2/m3
-	
-	defineConstant("litter_lambda", 2.0); //lambda for poisson-distributed litter size
-	
-	//weight of habitat preference
-	//strength of selection of phen towards pre-existing optimum
-	//defineConstant("OPT_WEIGHT",0.0);
-	//defineConstant("FLOOR",0.1); //minimum adaptive value, effects prob. of rescue
-	//defineConstant("BURN_FLOOR",0.1); //starting floor for each burnin stage
-	
-	//Maximum benefit at low density
-	//maximum fitness benefit at low density; <1=allee;>1=increased fitness
-	//note that this value will not take into effect until
-	//AFTER burn-in is completed. During burnin it is fixed at BURN_DENS
-	//defineConstant("DENS_SEL",1.0); 	
-	//defineConstant("BURN_DENS", 1.5);
-	
 
 
 	initializeMutationType("m1", 0.5, "n", 0.0, 1.0);  // QTL
@@ -47,7 +24,7 @@ initialize() {
 
 1:60000 reproduction(p1){
 	mate = i2.nearestNeighbors(individual, 1);
-	for (i in seqLen(rpois(1, litter_lambda))){
+	for (i in seqLen(rpois(1, 2.0))){
 		if (mate.size()){
 			offspring = subpop.addCrossed(individual, mate);
 			// set offspring position
@@ -62,8 +39,8 @@ initialize() {
 	mate = i2.nearestNeighbors(individual, 1);
 	if (mate.size()){
 		match = (abs(1.0 - mate.sumOfMutationsOfType(m1)));
-		if (abs(rnorm(1, 0.0, sigma_R)) > match){
-			for (i in seqLen(rpois(1, litter_lambda))){
+		if (abs(rnorm(1, 0.0, 0.5)) > match){
+			for (i in seqLen(rpois(1, 2.0))){
 				offspring = subpop.addCrossed(individual, mate);
 				// set offspring position
 				pos = individual.spatialPosition + rnorm(2, 0, 0.01);
@@ -75,7 +52,7 @@ initialize() {
 
 1:60000 reproduction(p2){
 	mate = i2.nearestNeighbors(individual, 1);
-	for (i in seqLen(rpois(1, litter_lambda))){
+	for (i in seqLen(rpois(1, 2.0))){
 		if (mate.size()){
 			offspring = subpop.addCrossed(individual, mate);
 			// set offspring position
@@ -90,8 +67,8 @@ initialize() {
 	mate = i2.nearestNeighbors(individual, 1);
 	if (mate.size()){
 		match = (abs(0.0 - mate.sumOfMutationsOfType(m1)));
-		if (abs(rnorm(1, 0.0, sigma_R)) > match){
-			for (i in seqLen(rpois(1, litter_lambda))){
+		if (abs(rnorm(1, 0.0, 0.5)) > match){
+			for (i in seqLen(rpois(1, 2.0))){
 				offspring = subpop.addCrossed(individual, mate);
 				// set offspring position
 				pos = individual.spatialPosition + rnorm(2, 0, 0.01);
@@ -104,8 +81,8 @@ initialize() {
 1 early() {
 	
 
-	sim.addSubpop("p1", K1);
-	sim.addSubpop("p2", K2);
+	sim.addSubpop("p1", 100);
+	sim.addSubpop("p2", 100);
 	
 	
 	p1.setSpatialBounds(c(0.0, 0.0, 1.0, 1.0));
@@ -127,7 +104,7 @@ initialize() {
 }
 
 early() {
-	i1.evaluate();
+	//i1.evaluate();
 
 	// construct phenotypes from the additive effects of QTLs
 	inds = sim.subpopulations.individuals;
@@ -140,8 +117,8 @@ early() {
 //BURN IN PERIOD 1: Generating Variation
 1:10000 early(){
 	//range-wide density dependence if < Tburn3
-	p1.fitnessScaling = min(K1 / p1.individualCount, 1.5);
-	p2.fitnessScaling = min(K2 / p2.individualCount, 1.5);
+	p1.fitnessScaling = min(500 / p1.individualCount, 1.5);
+	p2.fitnessScaling = min(500 / p2.individualCount, 1.5);
 
 }
 
@@ -150,8 +127,8 @@ early() {
 	inds = sim.subpopulations.individuals;
 	phenotype =  sim.subpopulations.individuals.sumOfMutationsOfType(m1);
 	
-	p1.fitnessScaling = min(K1 / p1.individualCount, 1.5);
-	p2.fitnessScaling = min(K2 / p2.individualCount, 1.5);
+	p1.fitnessScaling = min(500 / p1.individualCount, 1.5);
+	p2.fitnessScaling = min(500 / p2.individualCount, 1.5);
 	
 	optima = c(rep(1.0, p1.individualCount), rep(0.0, p2.individualCount));
 	deviations = optima - phenotype;
@@ -164,12 +141,12 @@ early() {
 
 
 //BURN IN PERIOD 3: Working in spatial effect and mate choice
-70001:80000 early(){
+70001:90000 early(){
 	inds = sim.subpopulations.individuals;
 	phenotype =  sim.subpopulations.individuals.sumOfMutationsOfType(m1);
 	
-	p1.fitnessScaling = min(K1 / p1.individualCount, 1.5);
-	p2.fitnessScaling = min(K2 / p2.individualCount, 1.5);
+	p1.fitnessScaling = min(500 / p1.individualCount, 1.5);
+	p2.fitnessScaling = min(500 / p2.individualCount, 1.5);
 	
 	optima = NULL;
 	for (ind in inds)
@@ -180,8 +157,8 @@ early() {
 	inds.fitnessScaling = 0.1 + adaptation*(0.9); //FLOOR = 0.1
 }
 
-80000 early(){
-	sim.outputFull("~/model.txt"); 
+90000 early(){
+	sim.outputFull("model.txt"); 
 	sim.simulationFinished();
 }
 
