@@ -59,7 +59,7 @@ initialize() {
 	defineConstant("m",0.0); //migration rate p2 --> p1
 	defineConstant("opt1b", 0.85);
 	defineConstant("max_change", 0.5);
-	defineConstant("delta", -0.0001); //rate of change from opt1 to opt2 starting at Tdelta
+	defineConstant("delta", -0.001); //rate of change from opt1 to opt2 starting at Tdelta
 	
 	
 	// spatial competition
@@ -178,7 +178,7 @@ fitness(m3, p1) { return 1/(sigma_s*relFitness); }
 
 
 //Tdelta = Tm = 90001
-91000: late(){
+95000: late(){
 	inds = sim.subpopulations.individuals;
 	//Migration, after time Tm
 
@@ -230,7 +230,7 @@ late()
 	i2.evaluate();	
 }
 
-93000 late() {
+100000 late() {
 	print("Simulation finished.");
 	sim.simulationFinished();
 }
