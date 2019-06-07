@@ -9,8 +9,8 @@ initialize() {
 
 
 	initializeMutationType("m1", 0.5, "n", 0.0, 1.0);  // QTL
-	initializeMutationType("m2", 0.5, "e", 0.01); // deleterious in p2
-	initializeMutationType("m3", 0.5, "e", 0.01); // deleterious in p1
+	initializeMutationType("m2", 0.5, "e", 0.005); // deleterious in p2
+	initializeMutationType("m3", 0.5, "e", 0.005); // deleterious in p1
 	//initializeMutationType("m4", 0.5, "f", 0.0); //neutral
 	initializeGenomicElementType("g1", c(m1,m2,m3), c(0.98, 0.01, 0.01));
 	//initializeGenomicElementType("g1", m1, 1.0);
@@ -39,7 +39,7 @@ initialize() {
 	mate = i2.nearestNeighbors(individual, 1);
 	if (mate.size()){
 		match = (abs(1.0 - mate.sumOfMutationsOfType(m1)));
-		if (abs(rnorm(1, 0.0, 0.5)) > match){
+		if (abs(rnorm(1, 0.0, 0.4)) > match){
 			for (i in seqLen(rpois(1, 2.0))){
 				offspring = subpop.addCrossed(individual, mate);
 				// set offspring position
@@ -67,7 +67,7 @@ initialize() {
 	mate = i2.nearestNeighbors(individual, 1);
 	if (mate.size()){
 		match = (abs(0.0 - mate.sumOfMutationsOfType(m1)));
-		if (abs(rnorm(1, 0.0, 0.5)) > match){
+		if (abs(rnorm(1, 0.0, 0.4)) > match){
 			for (i in seqLen(rpois(1, 2.0))){
 				offspring = subpop.addCrossed(individual, mate);
 				// set offspring position
@@ -117,8 +117,8 @@ early() {
 //BURN IN PERIOD 1: Generating Variation
 1:10000 early(){
 	//range-wide density dependence if < Tburn3
-	p1.fitnessScaling = min(500 / p1.individualCount, 1.5);
-	p2.fitnessScaling = min(500 / p2.individualCount, 1.5);
+	p1.fitnessScaling = min(300 / p1.individualCount, 1.5);
+	p2.fitnessScaling = min(300 / p2.individualCount, 1.5);
 
 }
 
@@ -127,13 +127,13 @@ early() {
 	inds = sim.subpopulations.individuals;
 	phenotype =  sim.subpopulations.individuals.sumOfMutationsOfType(m1);
 	
-	p1.fitnessScaling = min(500 / p1.individualCount, 1.5);
-	p2.fitnessScaling = min(500 / p2.individualCount, 1.5);
+	p1.fitnessScaling = min(300 / p1.individualCount, 1.5);
+	p2.fitnessScaling = min(300 / p2.individualCount, 1.5);
 	
 	optima = c(rep(1.0, p1.individualCount), rep(0.0, p2.individualCount));
 	deviations = optima - phenotype;
-	fitnessFunctionMax = dnorm(0.0, 0.0, 0.5);
-	adaptation = dnorm(deviations, 0.0, 0.5) / fitnessFunctionMax; //normlz (0,1]
+	fitnessFunctionMax = dnorm(0.0, 0.0, 0.4);
+	adaptation = dnorm(deviations, 0.0, 0.4) / fitnessFunctionMax; //normlz (0,1]
 	scale=(70000-sim.generation)/(70000-10000);
 	mod_adapt=(scale) + adaptation*(1.0-scale);
 	inds.fitnessScaling = 0.1+mod_adapt*(0.9);	//FLOOR = 0.1
@@ -145,15 +145,15 @@ early() {
 	inds = sim.subpopulations.individuals;
 	phenotype =  sim.subpopulations.individuals.sumOfMutationsOfType(m1);
 	
-	p1.fitnessScaling = min(500 / p1.individualCount, 1.5);
-	p2.fitnessScaling = min(500 / p2.individualCount, 1.5);
+	p1.fitnessScaling = min(300 / p1.individualCount, 1.5);
+	p2.fitnessScaling = min(300 / p2.individualCount, 1.5);
 	
 	optima = NULL;
 	for (ind in inds)
 		optima = c(optima, p1.spatialMapValue("map1", ind.spatialPosition[0:1])); //try saply to optimize
 	deviations = optima - phenotype;
-	fitnessFunctionMax = dnorm(0.0, 0.0, 0.5);
-	adaptation = dnorm(deviations, 0.0, 0.5) / fitnessFunctionMax; 
+	fitnessFunctionMax = dnorm(0.0, 0.0, 0.4);
+	adaptation = dnorm(deviations, 0.0, 0.4) / fitnessFunctionMax; 
 	inds.fitnessScaling = 0.1 + adaptation*(0.9); //FLOOR = 0.1
 }
 
