@@ -12,8 +12,8 @@ initialize() {
 	defineConstant("S", 0.1);   // spatial competition distance
 	defineConstant("sigma_s", 1.0); //scaling for m2/m3 selection coefficients
 	defineConstant("sigma_C", 0.05); //max dist for mate choice
-	defineConstant("sigma_R", 0.2); //sd for prob. of mate selection
-	defineConstant("sigma_K", 0.25); //sd for fitness function
+	defineConstant("sigma_R", 0.3); //sd for prob. of mate selection
+	defineConstant("sigma_K", 0.5); //sd for fitness function
 	defineConstant("sigma_M", 0.01); //sd for dispersal
 	defineConstant("MAX_AGE", 5);
 	
@@ -56,7 +56,7 @@ initialize() {
 	defineConstant("opt2", 0.0);
 	//defineConstant("Tm", 90000);
 	defineConstant("Tdelta", 90000);
-	defineConstant("m",0.0); //migration rate p2 --> p1
+	defineConstant("m", 0.01); //migration rate p2 --> p1
 	defineConstant("opt1b", 0.85);
 	defineConstant("max_change", 0.5);
 	defineConstant("delta", -0.001); //rate of change from opt1 to opt2 starting at Tdelta
@@ -112,7 +112,7 @@ reproduction(p2) {
 	sim.addSubpop("p1", K1);
 	sim.addSubpop("p2", K2);
 	
-	sim.readFromPopulationFile("~/gila_simulations/model.txt");
+	sim.readFromPopulationFile("model.txt");
 	
 	p1.setSpatialBounds(c(0.0, 0.0, 1.0, 1.0));
 	p2.setSpatialBounds(c(0.0, 0.0, 1.0, 1.0));
@@ -184,7 +184,8 @@ fitness(m3, p1) { return 1/(sigma_s*relFitness); }
 
 	//migration p2 --> p1 w/ probability m
    prob_mig = runif(inds.size(), 0.0, 1.0);
-   moving = inds[prob_mig < m];
+   sz_scale=p1.individualCount/p2.individualCount; //convert to prob of a p1 ind. being a migrant, by multiplying by prop. of pop in p1
+   moving = inds[prob_mig < (m*sz_scale)];
    from_p2 = moving[moving.subpopulation == p2];
    //sample a position for migrant(s) based on randomly choosing a p1 individual position
    inds1 = p1.individuals;
@@ -231,6 +232,6 @@ late()
 }
 
 100000 late() {
-	print("Simulation finished.");
+	print("Simulation finished. All populations survived.");
 	sim.simulationFinished();
 }
